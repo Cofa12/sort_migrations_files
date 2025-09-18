@@ -5,6 +5,7 @@ namespace Cofa\SortMigrationsFiles\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\Finder\SplFileInfo;
 
 class SortMigrationFilesCommand extends Command
 {
@@ -16,12 +17,8 @@ class SortMigrationFilesCommand extends Command
         $migrationFiles = File::allFiles(database_path('migrations'));
         $migrationFiles = array_values($migrationFiles);
 
-        $indexes = [];
-        foreach ($migrationFiles as $i => $file) {
-            $indexes[$file->getFilename()] = $i;
-        }
-
         $database = DB::getDatabaseName();
+
         $foreignKeys = DB::select('
             SELECT TABLE_NAME, REFERENCED_TABLE_NAME
             FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
@@ -29,44 +26,38 @@ class SortMigrationFilesCommand extends Command
               AND REFERENCED_TABLE_NAME IS NOT NULL
         ', [$database]);
 
-        $swapped = true;
-        while ($swapped) {
-            $swapped = false;
+        $dependencies = [];
+        foreach ($foreignKeys as $fk) {
+            $dependencies[$fk->TABLE_NAME][] = $fk->REFERENCED_TABLE_NAME;
+        }
+        foreach ($dependencies as $dependency => $tables) {
+            $childTable = collect($migrationFiles)->first(function ($file) use ($dependency) {
+                return str_contains($file->getFilename(), 'create_'.$dependency);
+            });
 
-            foreach ($foreignKeys as $fk) {
-                $child = $fk->TABLE_NAME;
-                $parent = $fk->REFERENCED_TABLE_NAME;
 
-                $childFile = collect($migrationFiles)->first(fn($f) => str_contains($f->getFilename(), 'create_' . $child));
-                $parentFile = collect($migrationFiles)->first(fn($f) => str_contains($f->getFilename(), 'create_' . $parent));
+            foreach ($tables as $table) {
+                $baseTable = collect($migrationFiles)->first(function ($file) use ($table) {
+                    return str_contains($file->getFilename(), 'create_' . $table);
+                });
+                if ($childTable->getRelativePathname()<$baseTable->getRelativePathname()) {
+                    $childPath = $childTable->getPathname();
+                    $basePath  = $baseTable->getPathname();
 
-                if (! $childFile || ! $parentFile) {
-                    continue;
-                }
+                    [$childTimestamp, $childRest] = explode('_', $childTable->getFilename(), 2);
+                    [$baseTimestamp, $baseRest]   = explode('_', $baseTable->getFilename(), 2);
 
-                $childIndex = array_search($childFile, $migrationFiles, true);
-                $parentIndex = array_search($parentFile, $migrationFiles, true);
+                    $newChildName = $baseTimestamp . '_' . $childRest;
+                    $newBaseName  = $childTimestamp . '_' . $baseRest;
 
-                if ($childIndex < $parentIndex) {
-                    [$migrationFiles[$childIndex], $migrationFiles[$parentIndex]] = [$migrationFiles[$parentIndex], $migrationFiles[$childIndex]];
-                    $swapped = true;
+                    $newChildPath = $childTable->getPath() . DIRECTORY_SEPARATOR . $newChildName;
+                    $newBasePath  = $baseTable->getPath() . DIRECTORY_SEPARATOR . $newBaseName;
+
+                    rename($childPath, $newChildPath);
+                    rename($basePath, $newBasePath);
                 }
             }
         }
-
-        foreach ($migrationFiles as $i => $file) {
-            $timestamp = now()->addSeconds($i)->format('Y_m_d_His');
-            $parts = explode('_', $file->getFilename());
-            $baseName = implode('_', array_slice($parts, 4));
-            $newFileName = $timestamp . '_' . $baseName;
-            $newPath = $file->getPath() . DIRECTORY_SEPARATOR . $newFileName;
-
-            if ($file->getPathname() !== $newPath) {
-                rename($file->getPathname(), $newPath);
-                $this->info("Renamed {$file->getFilename()} -> {$newFileName}");
-            }
-        }
-
-        $this->info('Migrations reordered and renamed successfully!');
     }
+
 }
