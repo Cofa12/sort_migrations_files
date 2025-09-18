@@ -1,0 +1,30 @@
+{
+    "name": "cofa/sort-migrations-files",
+    "description": "A Laravel package to sort migration files",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "illuminate/console": "^10.0|^11.0|^12.0",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "illuminate/filesystem": "^10.0|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cofa\\SortMigrationsFiles\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Mahmoud Gamal",
+            "email": "112869567+Cofa12@users.noreply.github.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Cofa\\SortMigrationsFiles\\SortMigrationFilesServiceProvider"
+            ]
+        }
+    }
+}
