@@ -3,6 +3,7 @@
 namespace Cofa\SortMigrationsFiles;
 
 
+use Cofa\SortMigrationsFiles\Console\SortMigrationFilesCommand;
 use Illuminate\Support\ServiceProvider;
 
 class SortMigrationFilesServiceProvider extends ServiceProvider
@@ -16,7 +17,7 @@ class SortMigrationFilesServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
-
+                SortMigrationFilesCommand::class,
             ]);
         }
     }
